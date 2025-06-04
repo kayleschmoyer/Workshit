@@ -8,6 +8,7 @@ Private originalTax2 As Integer
 Private originalTax3 As Integer
 Private originalTax4 As Integer
 Private Editing As Boolean
+Private RecordSelected As Boolean
 
 
 Private Sub cmdSearch_Click(Index As Integer)
@@ -55,9 +56,16 @@ Private Sub Form_Load()
 
     LoadTaxRateLabels
     LoadExemptionsIntoGrid
-        
+
     Me.Font.Name = grdExemptions.Font.Name
     Me.Font.Size = grdExemptions.Font.Size
+
+    SSTab1.Tab = 0
+    AddingNew = False
+    Editing = False
+    RecordSelected = False
+    EnableTextFields False
+    UpdateToolbarStates
 End Sub
 
 Private Sub Form_Unload(cancel As Integer)
@@ -69,6 +77,7 @@ Private Sub addNew_Click(Index As Integer)
     AddingNew = True
     EnableTextFields True
     ClearFields
+    RecordSelected = False
     UpdateToolbarStates
 End Sub
 
@@ -87,6 +96,7 @@ Private Sub cancel_Click(Index As Integer)
     AddingNew = False
     EnableTextFields False
     Editing = False
+    RecordSelected = False
     UpdateToolbarStates
 End Sub
 
@@ -111,6 +121,7 @@ Private Sub delete_Click(Index As Integer)
     LoadExemptionsIntoGrid
     ClearFields
     EnableTextFields False
+    RecordSelected = False
     UpdateToolbarStates
     MsgBox "Record deleted.", vbInformation
     Exit Sub
@@ -166,6 +177,7 @@ Private Sub save_Click(Index As Integer)
     AddingNew = False
     Editing = False
     ClearFields
+    RecordSelected = False
     UpdateToolbarStates
     DoEvents
     LoadExemptionsIntoGrid
@@ -181,7 +193,7 @@ Private Sub done_Click(Index As Integer)
     If chkBuild.value = vbChecked Then
         DumpToTextFile
     End If
-
+    frmMDIParent.Show
     Unload Me
 End Sub
 
@@ -384,6 +396,7 @@ Private Sub grdExemptions_DblClick()
 
     AddingNew = False
     EnableTextFields False
+    RecordSelected = True
     UpdateToolbarStates
 End Sub
 
@@ -409,7 +422,7 @@ Private Sub UpdateToolbarStates()
 
     save(4).enabled = AddingNew Or Editing
     cancel(3).enabled = AddingNew Or Editing
-    delete(2).enabled = Not AddingNew And Not Editing
+    delete(2).enabled = Not AddingNew And Not Editing And RecordSelected
     addNew(0).enabled = Not AddingNew And Not Editing
 End Sub
 
@@ -432,6 +445,21 @@ Private Sub chkTax3LaborExempt_Click(Index As Integer)
 End Sub
 
 Private Sub chkTax4LaborExempt_Click()
+    Editing = True
+    UpdateToolbarStates
+End Sub
+
+Private Sub txtPartNumber_Change(Index As Integer)
+    Editing = True
+    UpdateToolbarStates
+End Sub
+
+Private Sub txtMFG_Change(Index As Integer)
+    Editing = True
+    UpdateToolbarStates
+End Sub
+
+Private Sub txtPartDescription_Change(Index As Integer)
     Editing = True
     UpdateToolbarStates
 End Sub
