@@ -1,0 +1,438 @@
+Dim taxLabels(1 To 4) As String
+Private AddingNew As Boolean
+Dim rsData As ADODB.Recordset
+Private Const SEARCH_PART As Integer = 0
+Dim myItem As Item
+Private originalTax1 As Integer
+Private originalTax2 As Integer
+Private originalTax3 As Integer
+Private originalTax4 As Integer
+Private Editing As Boolean
+
+
+Private Sub cmdSearch_Click(Index As Integer)
+    On Error GoTo ErrorHandler
+
+    Const SEARCH_PART As Integer = 0
+
+    Select Case Index
+        Case SEARCH_PART
+            If Trim(txtPartNumber(1).text) = "" Then Exit Sub
+
+            Dim mfgValue As String
+            mfgValue = Trim(txtMFG(2).text)
+
+            myItem.GetItemInfo FixSingleQuotes(txtPartNumber(1).text), FixSingleQuotes(mfgValue)
+
+            If myItem.ItemRsStatus = 0 Then
+                txtPartNumber(1).text = "" & myItem.ItemRS!item_number
+                txtMFG(2).text = "" & myItem.ItemRS!VENDOR_NUMBER
+                txtPartDescription(3).text = "" & myItem.MasterRs!Item_Desc
+            Else
+                DoFocus txtPartNumber(1)
+            End If
+    End Select
+
+PreExit:
+    Exit Sub
+
+ErrorHandler:
+    Dim msg As String
+    msg = "Error # " & str(Err.number) & vbCrLf & vbCrLf & Err.Description & vbCrLf & vbCrLf & _
+          "Module: frmMainTaxRateLaborExemption" & vbCrLf & "Procedure: cmdSearch_Click"
+    MsgBox msg, vbCritical, "VAST Error"
+    Resume PreExit
+End Sub
+
+Private Sub Form_Load()
+    On Error Resume Next
+
+    AdjustForm Me
+    frmMDIParent.Center Me
+
+    Set myItem = New Item
+    myItem.DisErrors = True
+
+    LoadTaxRateLabels
+    LoadExemptionsIntoGrid
+        
+    Me.Font.Name = grdExemptions.Font.Name
+    Me.Font.Size = grdExemptions.Font.Size
+End Sub
+
+Private Sub Form_Unload(cancel As Integer)
+    Set myItem = Nothing
+End Sub
+
+Private Sub addNew_Click(Index As Integer)
+    On Error Resume Next
+    AddingNew = True
+    EnableTextFields True
+    ClearFields
+    UpdateToolbarStates
+End Sub
+
+Private Sub cancel_Click()
+    On Error Resume Next
+
+    If Not AddingNew Then
+        chkTax1LaborExempt(0).value = originalTax1
+        chkTax2LaborExempt(1).value = originalTax2
+        chkTax3LaborExempt(2).value = originalTax3
+        chkTax4LaborExempt.value = originalTax4
+    Else
+        ClearFields
+    End If
+
+    AddingNew = False
+    EnableTextFields False
+    Editing = False
+    UpdateToolbarStates
+End Sub
+
+
+Private Sub delete_Click(Index As Integer)
+    On Error GoTo ErrorHandler
+
+    If Trim(txtMFG(2).text) = "" Or Trim(txtPartNumber(1).text) = "" Then
+        MsgBox "Please enter both Manufacturer and Part Number.", vbExclamation
+        Exit Sub
+    End If
+
+    Dim response As Integer
+    response = MsgBox("Are you sure you want to delete this record?", vbYesNo + vbQuestion, "Confirm Delete")
+    If response = vbNo Then Exit Sub
+
+    Dim sqlDelete As String
+    sqlDelete = "DELETE FROM TAXRATEPARTLABOREXCEPTION WHERE Vendor_Code = '" & txtMFG(2).text & "' AND Part_Number = '" & txtPartNumber(1).text & "'"
+
+    gADOCN.Execute sqlDelete
+
+    LoadExemptionsIntoGrid
+    ClearFields
+    EnableTextFields False
+    UpdateToolbarStates
+    MsgBox "Record deleted.", vbInformation
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "Error deleting record: " & Err.Description, vbCritical
+End Sub
+
+Private Sub save_Click(Index As Integer)
+    On Error GoTo ErrorHandler
+
+    Dim sqlCheck As String
+    Dim rs As ADODB.Recordset
+    Dim sqlInsertOrUpdate As String
+    Dim exists As Boolean
+
+    If Trim(txtPartNumber(1).text) = "" Or Trim(txtMFG(2).text) = "" Then
+        MsgBox "Part Number and Manufacturer are required.", vbExclamation
+        Exit Sub
+    End If
+
+    sqlCheck = "SELECT COUNT(*) AS RecordCount FROM TAXRATEPARTLABOREXCEPTION WHERE Vendor_Code = '" & Replace(txtMFG(2).text, "'", "''") & "' AND Part_Number = '" & Replace(txtPartNumber(1).text, "'", "''") & "'"
+    Set rs = New ADODB.Recordset
+    rs.Open sqlCheck, gADOCN, adOpenStatic, adLockReadOnly
+    exists = (rs!recordCount > 0)
+    rs.Close
+
+    If exists Then
+        sqlInsertOrUpdate = "UPDATE TAXRATEPARTLABOREXCEPTION SET " & _
+            "isLevel1_Labor_TaxExempt = " & IIf(chkTax1LaborExempt(0).value = vbChecked, "1", "0") & ", " & _
+            "isLevel2_Labor_TaxExempt = " & IIf(chkTax2LaborExempt(1).value = vbChecked, "1", "0") & ", " & _
+            "isLevel3_Labor_TaxExempt = " & IIf(chkTax3LaborExempt(2).value = vbChecked, "1", "0") & ", " & _
+            "isLevel4_Labor_TaxExempt = " & IIf(chkTax4LaborExempt.value = vbChecked, "1", "0") & " " & _
+            "WHERE Vendor_Code = '" & Replace(txtMFG(2).text, "'", "''") & "' AND Part_Number = '" & Replace(txtPartNumber(1).text, "'", "''") & "'"
+    Else
+        sqlInsertOrUpdate = "INSERT INTO TAXRATEPARTLABOREXCEPTION " & _
+            "(Vendor_Code, Part_Number, isLevel1_Labor_TaxExempt, isLevel2_Labor_TaxExempt, isLevel3_Labor_TaxExempt, isLevel4_Labor_TaxExempt) " & _
+            "VALUES ('" & Replace(txtMFG(2).text, "'", "''") & "', '" & Replace(txtPartNumber(1).text, "'", "''") & "', " & _
+            IIf(chkTax1LaborExempt(0).value = vbChecked, "1", "0") & ", " & _
+            IIf(chkTax2LaborExempt(1).value = vbChecked, "1", "0") & ", " & _
+            IIf(chkTax3LaborExempt(2).value = vbChecked, "1", "0") & ", " & _
+            IIf(chkTax4LaborExempt.value = vbChecked, "1", "0") & ")"
+    End If
+
+    gADOCN.Execute sqlInsertOrUpdate
+
+    MsgBox "Saved successfully.", vbInformation
+
+    If chkBuild.value = vbChecked Then
+        DumpToTextFile
+    End If
+
+    AddingNew = False
+    Editing = False
+    ClearFields
+    UpdateToolbarStates
+    DoEvents
+    LoadExemptionsIntoGrid
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "Error while saving: " & Err.Description, vbCritical
+End Sub
+
+Private Sub done_Click(Index As Integer)
+    On Error Resume Next
+
+    If chkBuild.value = vbChecked Then
+        DumpToTextFile
+    End If
+
+    Unload Me
+End Sub
+
+
+Private Sub AutoResizeGridColumns()
+    On Error Resume Next
+    Dim i As Integer
+    Dim colWidths(0 To 6) As Integer
+    Dim fudgeFactor As Integer: fudgeFactor = 100
+
+    With grdExemptions
+        For i = 0 To .Cols - 1
+            Select Case i
+                Case 0
+                    colWidths(i) = TextWidth("Manufacturer")
+                Case 1
+                    colWidths(i) = TextWidth("Part Number")
+                Case 2
+                    colWidths(i) = TextWidth("Part Description")
+                Case 3 To 6
+                    colWidths(i) = TextWidth(taxLabels(i - 2))
+            End Select
+            colWidths(i) = colWidths(i) + fudgeFactor
+        Next i
+
+        For i = 0 To .Cols - 1
+            .ColWidth(i) = colWidths(i)
+        Next i
+    End With
+End Sub
+Private Sub LoadExemptionsIntoGrid()
+    On Error GoTo ErrorHandler
+
+    Dim rs As ADODB.Recordset
+    Dim sql As String
+    Dim rowIndex As Integer
+
+    grdExemptions.Visible = False
+    grdExemptions.Rows = 1
+
+    grdExemptions.ColDataType(3) = flexDTBoolean
+    grdExemptions.ColDataType(4) = flexDTBoolean
+    grdExemptions.ColDataType(5) = flexDTBoolean
+    grdExemptions.ColDataType(6) = flexDTBoolean
+
+    sql = "SELECT E.Vendor_Code, E.Part_Number, " & _
+          "ISNULL(M.Item_Desc, '') AS PartDescription, " & _
+          "E.isLevel1_Labor_TaxExempt, E.isLevel2_Labor_TaxExempt, " & _
+          "E.isLevel3_Labor_TaxExempt, E.isLevel4_Labor_TaxExempt " & _
+          "FROM TAXRATEPARTLABOREXCEPTION E " & _
+          "LEFT JOIN MASTER M ON E.Part_Number = M.PART_NUMBER AND E.Vendor_Code = M.VENDOR_CODE " & _
+          "ORDER BY E.Vendor_Code, E.Part_Number"
+
+    Set rs = New ADODB.Recordset
+    rs.Open sql, gADOCN, adOpenStatic, adLockReadOnly
+
+    Do While Not rs.EOF
+        grdExemptions.AddItem ""
+        rowIndex = grdExemptions.Rows - 1
+
+        grdExemptions.TextMatrix(rowIndex, 0) = rs!Vendor_Code
+        grdExemptions.TextMatrix(rowIndex, 1) = rs!Part_Number
+        grdExemptions.TextMatrix(rowIndex, 2) = rs!PartDescription
+        
+        grdExemptions.TextMatrix(rowIndex, 3) = IIf(rs!isLevel1_Labor_TaxExempt = vbTrue, vbTrue, vbFalse)
+        grdExemptions.TextMatrix(rowIndex, 4) = IIf(rs!isLevel2_Labor_TaxExempt = vbTrue, vbTrue, vbFalse)
+        grdExemptions.TextMatrix(rowIndex, 5) = IIf(rs!isLevel3_Labor_TaxExempt = vbTrue, vbTrue, vbFalse)
+        grdExemptions.TextMatrix(rowIndex, 6) = IIf(rs!isLevel4_Labor_TaxExempt = vbTrue, vbTrue, vbFalse)
+
+        rs.MoveNext
+    Loop
+
+    rs.Close
+    Set rs = Nothing
+    grdExemptions.Visible = True
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "Error loading exemptions: " & Err.Description, vbCritical
+    grdExemptions.Visible = True
+End Sub
+
+
+Private Sub LoadTaxRateLabels()
+    On Error GoTo ErrorHandler
+
+    Dim rs As ADODB.Recordset
+    Dim sql As String
+    Dim i As Integer
+
+    For i = 1 To 4
+        taxLabels(i) = "Tax Level " & i & " Labor Exempt"
+    Next i
+
+    sql = "SELECT LEVELNUMBER, SHORT_NAME FROM TAXRATES WHERE COMPANY = '" & CompanyNumber & "' AND LEVELNUMBER IN (1, 2, 3, 4)"
+
+    Set rs = New ADODB.Recordset
+    rs.Open sql, gADOCN, adOpenStatic, adLockReadOnly
+
+    Do While Not rs.EOF
+        If rs!LevelNumber >= 1 And rs!LevelNumber <= 4 Then
+            taxLabels(rs!LevelNumber) = rs!SHORT_NAME & " Labor Exempt"
+        End If
+        rs.MoveNext
+    Loop
+
+    lblTax1LaborExempt.Caption = "T1 Labor Exemptions"
+    lblTax2LaborExempt.Caption = "T2 Labor Exemptions"
+    lblTax3LaborExempt.Caption = "T3 Labor Exemptions"
+    lblTax4LaborExempt.Caption = "T4 Labor Exemptions"
+
+
+    UpdateGridHeaders
+    AutoResizeGridColumns
+
+    rs.Close
+    Set rs = Nothing
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "Error loading tax labels: " & Err.Description, vbCritical
+End Sub
+
+Private Sub UpdateGridHeaders()
+    On Error Resume Next
+
+    With grdExemptions
+        .Cols = 7
+        .Rows = 1
+        .FixedRows = 1
+        .FixedCols = 0
+
+        .TextMatrix(0, 0) = "Manufacturer"
+        .TextMatrix(0, 1) = "Part Number"
+        .TextMatrix(0, 2) = "Part Description"
+        .TextMatrix(0, 3) = "T1 Labor"
+        .TextMatrix(0, 4) = "T2 Labor"
+        .TextMatrix(0, 5) = "T3 Labor"
+        .TextMatrix(0, 6) = "T4 Labor"
+        
+        .ColWidth(0) = 1800
+        .ColWidth(1) = 1800
+        .ColWidth(2) = 4000
+        .ColWidth(3) = 900
+        .ColWidth(4) = 900
+        .ColWidth(5) = 900
+        .ColWidth(6) = 900
+         
+        grdExemptions.ColDataType(3) = flexDTBoolean
+        grdExemptions.ColDataType(4) = flexDTBoolean
+        grdExemptions.ColDataType(5) = flexDTBoolean
+        grdExemptions.ColDataType(6) = flexDTBoolean
+
+    End With
+End Sub
+
+Private Sub DumpToTextFile()
+    On Error Resume Next
+    Dim fso As Object, file As Object
+    Dim filePath As String
+    filePath = App.Path & "\TaxLaborExempt.txt"
+
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set file = fso.CreateTextFile(filePath, True)
+
+    file.WriteLine "Part Number: " & txtPartNumber(1).text
+    file.WriteLine "Manufacturer: " & txtMFG(2).text
+    file.WriteLine "Description: " & txtPartDescription(3).text
+    file.WriteLine "Tax 1 Exempt: " & chkTax1LaborExempt(0).value
+    file.WriteLine "Tax 2 Exempt: " & chkTax2LaborExempt(1).value
+    file.WriteLine "Tax 3 Exempt: " & chkTax3LaborExempt(2).value
+    file.WriteLine "Tax 4 Exempt: " & chkTax4LaborExempt.value
+
+    file.Close
+    MsgBox "Text file created at: " & filePath, vbInformation
+End Sub
+
+Private Sub grdExemptions_DblClick()
+    On Error Resume Next
+
+    SSTab1.Tab = 1
+
+    Dim selectedRow As Integer
+    selectedRow = grdExemptions.Row
+    If selectedRow <= 0 Then Exit Sub
+
+    txtMFG(2).text = grdExemptions.TextMatrix(selectedRow, 0)
+    txtPartNumber(1).text = grdExemptions.TextMatrix(selectedRow, 1)
+    txtPartDescription(3).text = grdExemptions.TextMatrix(selectedRow, 2)
+
+    chkTax1LaborExempt(0).value = IIf(grdExemptions.TextMatrix(selectedRow, 3) = vbTrue, vbChecked, vbUnchecked)
+    chkTax2LaborExempt(1).value = IIf(grdExemptions.TextMatrix(selectedRow, 4) = vbTrue, vbChecked, vbUnchecked)
+    chkTax3LaborExempt(2).value = IIf(grdExemptions.TextMatrix(selectedRow, 5) = vbTrue, vbChecked, vbUnchecked)
+    chkTax4LaborExempt.value = IIf(grdExemptions.TextMatrix(selectedRow, 6) = vbTrue, vbChecked, vbUnchecked)
+
+    originalTax1 = chkTax1LaborExempt(0).value
+    originalTax2 = chkTax2LaborExempt(1).value
+    originalTax3 = chkTax3LaborExempt(2).value
+    originalTax4 = chkTax4LaborExempt.value
+
+    AddingNew = False
+    EnableTextFields False
+    UpdateToolbarStates
+End Sub
+
+
+Private Sub ClearFields()
+    txtPartNumber(1).text = ""
+    txtMFG(2).text = ""
+    txtPartDescription(3).text = ""
+
+    chkTax1LaborExempt(0).value = vbUnchecked
+    chkTax2LaborExempt(1).value = vbUnchecked
+    chkTax3LaborExempt(2).value = vbUnchecked
+    chkTax4LaborExempt.value = vbUnchecked
+End Sub
+
+Private Sub EnableTextFields(ByVal enabled As Boolean)
+    txtPartNumber(1).enabled = enabled
+    txtMFG(2).enabled = enabled
+End Sub
+
+Private Sub UpdateToolbarStates()
+    On Error Resume Next
+
+    save(4).enabled = AddingNew Or Editing
+    cancel(3).enabled = AddingNew Or Editing
+    delete(2).enabled = Not AddingNew And Not Editing
+    addNew(0).enabled = Not AddingNew And Not Editing
+End Sub
+
+Private Sub PopulateControls()
+End Sub
+
+Private Sub chkTax1LaborExempt_Click(Index As Integer)
+    Editing = True
+    UpdateToolbarStates
+End Sub
+
+Private Sub chkTax2LaborExempt_Click(Index As Integer)
+    Editing = True
+    UpdateToolbarStates
+End Sub
+
+Private Sub chkTax3LaborExempt_Click(Index As Integer)
+    Editing = True
+    UpdateToolbarStates
+End Sub
+
+Private Sub chkTax4LaborExempt_Click()
+    Editing = True
+    UpdateToolbarStates
+End Sub
+
