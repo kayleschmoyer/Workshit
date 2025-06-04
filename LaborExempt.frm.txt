@@ -317,11 +317,11 @@ Private Sub UpdateGridHeaders()
         .TextMatrix(0, 0) = "Manufacturer"
         .TextMatrix(0, 1) = "Part Number"
         .TextMatrix(0, 2) = "Part Description"
-        .TextMatrix(0, 3) = "T1 Labor"
-        .TextMatrix(0, 4) = "T2 Labor"
-        .TextMatrix(0, 5) = "T3 Labor"
-        .TextMatrix(0, 6) = "T4 Labor"
-        
+        .TextMatrix(0, 3) = taxLabels(1)
+        .TextMatrix(0, 4) = taxLabels(2)
+        .TextMatrix(0, 5) = taxLabels(3)
+        .TextMatrix(0, 6) = taxLabels(4)
+
         .ColWidth(0) = 1800
         .ColWidth(1) = 1800
         .ColWidth(2) = 4000
@@ -435,4 +435,3 @@ Private Sub chkTax4LaborExempt_Click()
     Editing = True
     UpdateToolbarStates
 End Sub
-
