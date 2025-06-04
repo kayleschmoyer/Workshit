@@ -72,7 +72,7 @@ Private Sub addNew_Click(Index As Integer)
     UpdateToolbarStates
 End Sub
 
-Private Sub cancel_Click()
+Private Sub cancel_Click(Index As Integer)
     On Error Resume Next
 
     If Not AddingNew Then
